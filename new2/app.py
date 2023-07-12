@@ -15,6 +15,7 @@ def data_discovery():
 
 def is_sensitive_data(file_path):
   """Returns True if the given file path is sensitive data."""
+  print("check-if-senstitive")
   sensitive_data_patterns = ['.*PII.*', '.*confidential.*']
   for pattern in sensitive_data_patterns:
     if re.search(pattern, file_path):
@@ -55,8 +56,9 @@ def get_file():
   file_path = request.args.get('file_path')
   if is_sensitive_data(file_path):
     decrypt_file(file_path)
-  with open(file_path, 'rb') as file:
-    file_data = file.read()
+  print("Inside fet_file function")
+  file_data = open(file_path, 'r').read()
+  print(file_data)
   return jsonify({'file_data': file_data})
 
 @app.route('/users', methods=['GET'])
