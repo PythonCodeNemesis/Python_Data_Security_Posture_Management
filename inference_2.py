@@ -5,17 +5,16 @@ import os
 
 
 # Declare encryption key
-encryption_key = Fernet.generate_key()
+encryption_key = key = b'Y_ySo_2sVHHUCqMaqEQc_tcM_31jZQlH2YLt69JH0TQ='#Fernet.generate_key()
+f = Fernet(key)
 
 # Function to encrypt data
-def encrypt_data(key, data):
-    f = Fernet(key)
+def encrypt_data(key, data):    
     encrypted_data = f.encrypt(data)
     return encrypted_data
 
 # Function to decrypt data
 def decrypt_data(key, encrypted_data):
-    f = Fernet(key)
     decrypted_data = f.decrypt(encrypted_data)
     return decrypted_data
 

@@ -6,7 +6,6 @@ app = Flask(__name__)
 
 # Generate encryption key
 encryption_key = Fernet.generate_key()
-print(encryption_key)
 f = Fernet(encryption_key)
 
 # Configure logging
@@ -45,7 +44,7 @@ def upload_document():
         document_name = request.form.get('name')
         if document_name:
             # Encrypt the document name before storing
-            encrypted_document_name = f.encrypt(document_name)
+            encrypted_document_name = f.encrypt(document_name.encode()).decode()
             documents.append(encrypted_document_name)
 
             # Log the document upload
@@ -83,23 +82,6 @@ def check_threats():
         document_name = request.form.get('name')
         if document_name:
             # Decrypt the document name for threat intelligence check
-            decrypted_document_name = cipher_suite.decrypt(document_name.encode()).decode()
-
-            if decrypted_document_name in threat_intelligence['malicious_documents']:
-                return jsonify({'threat': 'Malicious document detected'})
-
-            return jsonify({'message': 'No threats detected'})
-        else:
-            return jsonify({'error': 'Invalid document name'}), 400
-    else:
-        return jsonify({'error': 'Access Denied'}), 403
-
-def check_threats():
-    user_role = request.headers.get('User-Role')
-    if 'view_documents' in user_roles.get(user_role, []):
-        document_name = request.form.get('name')
-        if document_name:
-            # Decrypt the document name for threat intelligence check
             decrypted_document_name = f.decrypt(document_name.encode()).decode()
 
             if decrypted_document_name in threat_intelligence['malicious_documents']:
@@ -109,13 +91,7 @@ def check_threats():
         else:
             return jsonify({'error': 'Invalid document name'}), 400
     else:
-        return jsonify({'error': 'Access denied'}), 403
-
-    headers = {
-      'User-Role': user_role,
-      'Encryption-Key': encryption_key,
-    }
-    return jsonify({'message': 'Document uploaded successfully'})
+        return jsonify({'error': 'Access Denied'}), 403
 
 if __name__ == '__main__':
     app.run(debug=True)

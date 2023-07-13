@@ -3,7 +3,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 
 # Generate encryption key
-key = Fernet.generate_key()
+key = b'Y_ySo_2sVHHUCqMaqEQc_tcM_31jZQlH2YLt69JH0TQ='
 cipher_suite = Fernet(key)
 
 # Function to send a GET request to the /documents endpoint

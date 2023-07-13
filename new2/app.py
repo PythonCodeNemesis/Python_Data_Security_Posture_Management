@@ -1,9 +1,18 @@
+from email import header
 import os
 import re
 from flask import Flask, request, jsonify
 from cryptography.fernet import Fernet
 
 app = Flask(__name__)
+# key is generated
+key = Fernet.generate_key()
+print(key)
+  
+# value of key is assigned to a variable
+f = Fernet(key)
+
+base_encrypted_file_path = "./encrypted"
 
 def data_discovery():
   """Discovers all sensitive data stored in the doc storage."""
@@ -23,31 +32,39 @@ def is_sensitive_data(file_path):
   return False
 
 def encrypt_file(file_path):
-  """Encrypts the given file."""
-  key = Fernet.generate_key()
-  with open(file_path, 'rb') as file:
-    file_data = file.read()
-  encrypted_file_data = Fernet(key).encrypt(file_data)
-  with open(file_path, 'wb') as file:
-    file.write(encrypted_file_data)
+    """Encrypts the given file."""
+    with open(file_path, 'rb') as file:
+        file_data = file.read()
+        print("File data read as", file_data)
+    encrypted_file_data = f.encrypt(file_data)
+    print("encrypyted as tokyo : ",encrypted_file_data)
+    with open(file_path, 'wb') as file:
+        file.write(encrypted_file_data)
 
 def decrypt_file(file_path):
-  """Decrypts the given file."""
-  key = Fernet.generate_key()
-  with open(file_path, 'rb') as file:
-     encrypted_file_data = file.read()
-  decrypted_file_data = Fernet(key).decrypt(encrypted_file_data)
-  with open(file_path, 'wb') as file:
-    file.write(decrypted_file_data)
+    """Decrypts the given file."""
+    file_path = "./encrypted/" + file_path
+    with open(file_path, 'r') as file:
+        encrypted_file_data = file.read()
+        print("encrypted_file_data read as", encrypted_file_data)
+    decrypted_file_data = f.decrypt(encrypted_file_data).decode('utf-8')
+    print("decyrpted",decrypted_file_data)
+    with open(file_path, 'w') as file:
+        file.write(decrypted_file_data)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
   """Uploads a file to the doc storage."""
-  file = request.files['file']
-  file_path = os.path.join('.', file.filename)
-  if is_sensitive_data(file_path):
-    encrypt_file(file_path)
-  file.save(file_path)
+
+  print(request.get_json())
+  fileName = request.json["name"]
+  fileContent = request.json["data"]
+  if is_sensitive_data(fileName):
+    encrypted_file_path = base_encrypted_file_path + "/" + fileName
+    with open(encrypted_file_path,"w") as file:
+      file.write(fileContent)
+    encrypt_file(encrypted_file_path)
+  print("Data encrypted as " + open(encrypted_file_path, 'r').read())
   return 'File uploaded successfully'
 
 @app.route('/get_file', methods=['GET'])
@@ -56,8 +73,8 @@ def get_file():
   file_path = request.args.get('file_path')
   if is_sensitive_data(file_path):
     decrypt_file(file_path)
-  print("Inside fet_file function")
-  file_data = open(file_path, 'r').read()
+  print("Inside get_file function")
+  file_data = open("./encrypted/" + file_path, 'r').read()
   print(file_data)
   return jsonify({'file_data': file_data})
 
