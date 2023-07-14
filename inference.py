@@ -1,77 +1,51 @@
 import requests
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.backends import default_backend
-import base64
-import os
 
-# Generate encryption key
-def generate_key():
-    key = base64.urlsafe_b64encode(os.urandom(32))
-    return key
+base_url = 'http://localhost:5000'
 
-# Encrypt data
-def encrypt_data(key, data):
-    iv = os.urandom(16)
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    encryptor = cipher.encryptor()
-    ciphertext = encryptor.update(data) + encryptor.finalize()
-    return iv + ciphertext
-
-# Decrypt data
-def decrypt_data(key, encrypted_data):
-    iv = encrypted_data[:16]
-    ciphertext = encrypted_data[16:]
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
-    decryptor = cipher.decryptor()
-    data = decryptor.update(ciphertext) + decryptor.finalize()
-    return data
-
-# Data classification
-def classify_data(data):
-    sensitive_keywords = ['password', 'confidential', 'secret']
-    if any(keyword in data.lower() for keyword in sensitive_keywords):
-        return 'Sensitive'
+def upload_file(user, file_path):
+    """Uploads a file to the document storage."""
+    file_data = open(file_path, 'r').read()
+    payload = {
+        "name": file_path,
+        "data": file_data
+    }
+    response = requests.post(f'{base_url}/upload', json=payload)
+    if response.status_code == 200:
+        print(f'File {file_path} uploaded successfully for user {user}')
     else:
-        return 'Non-sensitive'
+        print(f'Error uploading file {file_path} for user {user}')
 
-# Secure coding practices - View documents
-def view_documents(user_role):
-    headers = {'User-Role': user_role}
-    response = requests.get('http://127.0.0.1:5000/documents', headers=headers)
-    print(f'Response for {user_role}: {response.text}')
+def get_file(user, file_path):
+    """Gets a file from the document storage."""
+    response = requests.get(f'{base_url}/get_file', params={'file_path': file_path})
+    if response.status_code == 200:
+        file_data = response.json()['file_data']
+        print(f'File content for user {user}: {file_data}')
+    else:
+        print(f'Error retrieving file {file_path} for user {user}')
 
-# Secure coding practices - Upload document
-def upload_document(user_role, document_name):
-    headers = {'User-Role': user_role}
-    encrypted_document_name = encrypt_data(encryption_key, document_name.encode())
-    data = {'name': base64.b64encode(encrypted_document_name).decode()}
-    response = requests.post('http://127.0.0.1:5000/documents', headers=headers, data=data)
-    print(f'Response for {user_role}: {response.text}')
+def set_access_control(user, file_path, role, permission):
+    """Sets the access control for a file."""
+    response = requests.post(f'{base_url}/access_control', params={'file_path': file_path, 'user': user, 'role': role, 'permission': permission})
+    if response.status_code == 200:
+        print(f'Access control set successfully for user {user} on file {file_path}')
+    else:
+        print(f'Error setting access control for user {user} on file {file_path}')
 
-# Secure coding practices - Delete document
-def delete_document(user_role, document_name):
-    headers = {'User-Role': user_role}
-    encrypted_document_name = encrypt_data(encryption_key, document_name.encode())
-    response = requests.delete(f'http://127.0.0.1:5000/documents/{base64.b64encode(encrypted_document_name).decode()}', headers=headers)
-    print(f'Response for {user_role}: {response.text}')
-
-# Threat intelligence - Check threats
-def check_threats(user_role, document_name):
-    headers = {'User-Role': user_role}
-    encrypted_document_name = encrypt_data(encryption_key, document_name.encode())
-    data = {'name': base64.b64encode(encrypted_document_name).decode()}
-    response = requests.post('http://127.0.0.1:5000/check_threats', headers=headers, data=data)
-    print(f'Response for {user_role}: {response.text}')
-
-# Example usage
 if __name__ == '__main__':
-    encryption_key = generate_key()
+    encryption_key = 'your_encryption_key'
 
-    # Perform secure coding practices
-    view_documents('admin')                # Access granted for admin role
-    upload_document('user', 'file.txt')     # Document uploaded successfully for user role
-    delete_document('admin', 'file.txt')    # Document deleted successfully for admin role
+    # Perform requests with different access controls
+    upload_file('admin', 'file.txt')                       # Uploaded successfully for admin
+    upload_file('user', 'file.txt')                        # Uploaded successfully for user
 
-    # Perform threat intelligence check
-    check_threats('admin', 'virus.docx')    # Malicious document detected for admin role
-    check_threats('user', 'file.txt')       # No threats detected for user role
+    set_access_control('admin', 'file.txt', 'admin', 'write')    # Access control set for admin
+    set_access_control('user', 'file.txt', 'user', 'read')       # Access control set for user
+
+    get_file('admin', 'file.txt')                          # Access granted for admin
+    get_file('user', 'file.txt')                           # Access granted for user
+
+    set_access_control('admin', 'file.txt', 'user', 'read')       # Access control changed for admin
+
+    get_file('admin', 'file.txt')                          # Access granted for admin
+    get_file('user', 'file.txt')                           # Access denied for user

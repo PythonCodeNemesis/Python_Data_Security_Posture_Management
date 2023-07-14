@@ -1,121 +1,119 @@
+from email import header
+import os
+import re
 from flask import Flask, request, jsonify
 from cryptography.fernet import Fernet
-import logging
 
 app = Flask(__name__)
-
-# Generate encryption key
-encryption_key = Fernet.generate_key()
-print(encryption_key)
-f = Fernet(encryption_key)
-
-# Configure logging
-logging.basicConfig(filename='app.log', level=logging.INFO)
+# key is generated
+key = Fernet.generate_key()
+print(key)
+  
+# value of key is assigned to a variable
+f = Fernet(key)
 
 # Example user roles and access control
 user_roles = {
-    'admin': ['view_documents', 'upload_documents', 'delete_documents', 'view_logs'],
-    'user': ['view_documents', 'upload_documents']
+    'admin': ['upload_documents', 'get_document'],
+    'user': ['upload_documents']
 }
 
-documents = []
+base_encrypted_file_path = "./encrypted"
 
-# Example threat intelligence feeds
-threat_intelligence = {
-    'malicious_documents': ['virus.docx', 'malware.pdf']
-}
+def data_discovery():
+  """Discovers all sensitive data stored in the doc storage."""
+  for root, directories, files in os.walk('.'):
+    for file in files:
+      file_path = os.path.join(root, file)
+      if is_sensitive_data(file_path):
+        print(f'{file_path} is sensitive data')
 
-@app.route('/')
-def home():
-    return 'Document Management System'
+def is_sensitive_data(file_path):
+  """Returns True if the given file path is sensitive data."""
+  print("check-if-senstitive")
+  sensitive_data_patterns = ['.*PII.*', '.*confidential.*']
+  for pattern in sensitive_data_patterns:
+    if re.search(pattern, file_path):
+      return True
+  return False
 
-@app.route('/documents', methods=['GET'])
-def view_documents():
-    user_role = request.headers.get('User-Role')
-    if 'view_documents' in user_roles.get(user_role, []):
-        return jsonify(documents)
-    else:
-        return jsonify({'error': 'Access Denied'}), 403
+def encrypt_file(file_path):
+    """Encrypts the given file."""
+    with open(file_path, 'rb') as file:
+        file_data = file.read()
+        print("File data read as", file_data)
+    encrypted_file_data = f.encrypt(file_data)
+    print("encrypyted as tokyo : ",encrypted_file_data)
+    with open(file_path, 'wb') as file:
+        file.write(encrypted_file_data)
 
+def decrypt_file(file_path):
+    """Decrypts the given file."""
+    file_path = "./encrypted/" + file_path
+    with open(file_path, 'r') as file:
+        encrypted_file_data = file.read()
+        print("encrypted_file_data read as", encrypted_file_data)
+    decrypted_file_data = f.decrypt(encrypted_file_data).decode('utf-8')
+    print("decyrpted",decrypted_file_data)
+    with open(file_path, 'w') as file:
+        file.write(decrypted_file_data)
 
-@app.route('/documents', methods=['POST'])
-def upload_document():
-    user_role = request.headers.get('User-Role')
-    if 'upload_documents' in user_roles.get(user_role, []):
-        document_name = request.form.get('name')
-        if document_name:
-            # Encrypt the document name before storing
-            encrypted_document_name = f.encrypt(document_name)
-            documents.append(encrypted_document_name)
+@app.route('/upload', methods=['POST'])
+def upload_file():
+  """Uploads a file to the doc storage."""
+  user_role = request.headers.get('User-Role')
+  if 'upload_documents' in user_roles.get(user_role, []):
+    print(request.get_json())
+    fileName = request.json["name"]
+    fileContent = request.json["data"]
+    if is_sensitive_data(fileName):
+      encrypted_file_path = base_encrypted_file_path + "/" + fileName
+      with open(encrypted_file_path,"w") as file:
+        file.write(fileContent)
+      encrypt_file(encrypted_file_path)
+      print("Data encrypted as " + open(encrypted_file_path, 'r').read())
+    return 'File uploaded successfully'
+  else:
+    return 'Access Denied'
 
-            # Log the document upload
-            logging.info(f"User uploaded document: {document_name}")
+@app.route('/get_file', methods=['GET'])
+def get_file():
+  """Gets a file from the doc storage."""
+  user_role = request.headers.get('User-Role')
+  if 'get_document' in user_roles.get(user_role, []):
+    file_path = request.args.get('file_path')
+    if is_sensitive_data(file_path):
+      decrypt_file(file_path)
+    print("Inside get_file function")
+    file_data = open("./encrypted/" + file_path, 'r').read()
+    print(file_data)
+    return jsonify({'file_data': file_data})
+  else:
+    return jsonify({'error': 'Access Denied'}), 403
 
-            return jsonify({'message': 'Document uploaded successfully'})
-        else:
-            return jsonify({'error': 'Invalid document name'}), 400
-    else:
-        return jsonify({'error': 'Access Denied'}), 403
+@app.route('/users', methods=['GET'])
+def get_users():
+  """Gets all users."""
+  return jsonify({'users': ['user1', 'user2']})
 
-@app.route('/documents/<string:document_name>', methods=['DELETE'])
-def delete_document(document_name):
-    user_role = request.headers.get('User-Role')
-    if 'delete_documents' in user_roles.get(user_role, []):
-        # Decrypt the document name for comparison
-        decrypted_document_name = f.decrypt(document_name.encode()).decode()
+@app.route('/roles', methods=['GET'])
+def get_roles():
+  """Gets all roles."""
+  return jsonify({'roles': ['admin', 'user']})
 
-        if decrypted_document_name in documents:
-            documents.remove(decrypted_document_name)
+@app.route('/permissions', methods=['GET'])
+def get_permissions():
+  """Gets all permissions."""
+  return jsonify({'permissions': ['read', 'write', 'delete']})
 
-            # Log the document deletion
-            logging.info(f"User deleted document: {decrypted_document_name}")
-
-            return jsonify({'message': 'Document deleted successfully'})
-        else:
-            return jsonify({'error': 'Document not found'}), 404
-    else:
-        return jsonify({'error': 'Access Denied'}), 403
-
-@app.route('/check_threats', methods=['POST'])
-def check_threats():
-    user_role = request.headers.get('User-Role')
-    if 'view_documents' in user_roles.get(user_role, []):
-        document_name = request.form.get('name')
-        if document_name:
-            # Decrypt the document name for threat intelligence check
-            decrypted_document_name = cipher_suite.decrypt(document_name.encode()).decode()
-
-            if decrypted_document_name in threat_intelligence['malicious_documents']:
-                return jsonify({'threat': 'Malicious document detected'})
-
-            return jsonify({'message': 'No threats detected'})
-        else:
-            return jsonify({'error': 'Invalid document name'}), 400
-    else:
-        return jsonify({'error': 'Access Denied'}), 403
-
-def check_threats():
-    user_role = request.headers.get('User-Role')
-    if 'view_documents' in user_roles.get(user_role, []):
-        document_name = request.form.get('name')
-        if document_name:
-            # Decrypt the document name for threat intelligence check
-            decrypted_document_name = f.decrypt(document_name.encode()).decode()
-
-            if decrypted_document_name in threat_intelligence['malicious_documents']:
-                return jsonify({'threat': 'Malicious document detected'})
-
-            return jsonify({'message': 'No threats detected'})
-        else:
-            return jsonify({'error': 'Invalid document name'}), 400
-    else:
-        return jsonify({'error': 'Access denied'}), 403
-
-    headers = {
-      'User-Role': user_role,
-      'Encryption-Key': encryption_key,
-    }
-    return jsonify({'message': 'Document uploaded successfully'})
+@app.route('/access_control', methods=['POST'])
+def set_access_control():
+  """Sets the access control for a file."""
+  file_path = request.args.get('file_path')
+  user = request.args.get('user')
+  role = request.args.get('role')
+  permission = request.args.get('permission')
+  return jsonify({'success': True})
 
 if __name__ == '__main__':
-    app.run(debug=True)
+  app.run(debug=True)
